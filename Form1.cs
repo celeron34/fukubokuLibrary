@@ -1,14 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Data.SqlClient;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Xml.Linq;
 using System.Data.SQLite;
 using System.IO;
 
@@ -16,11 +8,14 @@ namespace nori
 {
     public partial class Form1 : Form
     {
-        private static string databaseFile = "samples.sqlite";
-        private static string connectionString = $"Data Source={databaseFile};Version=3;";
+        private readonly static string databaseFile = "samples.sqlite";
+        private readonly static string connectionString = $"Data Source={databaseFile};Version=3;";
         public Form1()
         {
             InitializeComponent();
+
+            this.MinimumSize = new System.Drawing.Size(282, 247);
+            this.MaximumSize = new System.Drawing.Size(282, int.MaxValue); ;
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -38,14 +33,14 @@ namespace nori
                 Console.WriteLine("新しいデータベースファイルを作成しました。");
             }
 
-            // テーブルが存在しない場合のみ作成
+            // テーブルが存在しない場合,作成
             using (SQLiteConnection connection = new SQLiteConnection(connectionString))
             {
                 connection.Open();
                 string createTableQuery = @"
                     CREATE TABLE IF NOT EXISTS samples (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        sample TEXT NOT NULL
+                        sample TEXT NOT NULL UNIQUE
                     )";
                 SQLiteCommand command = new SQLiteCommand(createTableQuery, connection);
                 command.ExecuteNonQuery();
@@ -69,7 +64,7 @@ namespace nori
         }
 
         // データの削除
-        private void removeData(string sample)
+        private void RemoveData(string sample)
         {  
             using (SQLiteConnection connection = new SQLiteConnection(connectionString))
             {
@@ -83,31 +78,62 @@ namespace nori
             }
         }
 
-        private void sarchBtn_Click(object sender, EventArgs e)
+        private void SarchBtn_Click(object sender, EventArgs e)
         {
+            searchList.Items.Clear();
             if ("" == searchTxt.Text)
             {
                 MessageBox.Show("検索ワードを入力してください．", "検索エラー", MessageBoxButtons.OK);
                 searchTxt.Focus();
                 return;
             }
-            List<string> result = searchData(searchTxt.Text);
-            if(result.Count == 0)
-            {
-                MessageBox.Show("検索ワードが見つかりませんでした．", "検索エラー", MessageBoxButtons.OK);
+
+            List<string> result = SearchData(searchTxt.Text);
+            if (result.Count == 0)
+            { // 部分一致がない
                 searchTxt.Focus();
+                addBtn.Enabled = true;
                 return;
             }
+            
             //Console.WriteLine(result);
-            searchList.Items.Clear();
-            foreach (string r in result)
+            foreach (string r in result) { searchList.Items.Add(r); }
+
+            if (!result.Contains(searchTxt.Text))
+            {  // 完全一致がない
+                addBtn.Enabled = true;
+            }
+            else
             {
-                searchList.Items.Add(r);
+                searchList.SelectedItem = searchTxt.Text;
+            }
+        }
+
+        private void searchTxt_TextChanged(object sender, EventArgs e)
+        {
+            addBtn.Enabled = false;
+        }
+        private void searchTxt_KeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
+        {
+            if(e.KeyCode == Keys.Enter) { SarchBtn_Click(sender, e); }
+        }
+
+        private void searchList_SelectedValueChanged(object sender, EventArgs e)
+        {
+            if (searchList.SelectedItems != null)
+            {
+                Console.WriteLine("rmBtn.Enabled = true");
+                rmBtn.Enabled = true;
+            }
+            else 
+            {
+                Console.WriteLine("rmBtn.Enabled = false");
+                rmBtn.Enabled = false;
             }
         }
 
         // データの検索
-        private static List<string> searchData(string line)
+        private static List<string> SearchData(string line)
         {
             List<string> samples = new List<string>();
             using (SQLiteConnection connection = new SQLiteConnection(connectionString))
@@ -127,12 +153,21 @@ namespace nori
             return samples;
         }
 
-        private void addBtn_Click(object sender, EventArgs e)
+        private void AddBtn_Click(object sender, EventArgs e)
         {
             InsertData(searchTxt.Text);
+            // リスト更新
+            List<string> result = SearchData(searchTxt.Text);
+            searchList.Items.Clear();
+            foreach (string r in result) { searchList.Items.Add(r); }
+
+            searchTxt.Focus();
+            addBtn.Enabled = false;
+            searchList.SelectedItem = searchTxt.Text;
+            MessageBox.Show(searchTxt.Text + " を追加しました．", "追加完了", MessageBoxButtons.OK);
         }
 
-        private void rmBtn_Click(object sender, EventArgs e)
+        private void RmBtn_Click(object sender, EventArgs e)
         {
             if (searchList.SelectedItem == null)
             {
@@ -140,7 +175,7 @@ namespace nori
                 return;
             }
             string selectedItem = searchList.SelectedItem.ToString();
-            if (searchData(selectedItem).Count == 0)
+            if (SearchData(selectedItem).Count == 0)
             {
                 MessageBox.Show("削除対象が見つかりませんでした．", "削除エラー", MessageBoxButtons.OK);
                 return;
@@ -154,13 +189,14 @@ namespace nori
                     return;
                 }
             }
-            removeData(selectedItem);
+            RemoveData(selectedItem);
             searchList.Items.Clear();
-            List<string> result = searchData(searchTxt.Text);
+            List<string> result = SearchData(searchTxt.Text);
             foreach(string r in result)
             {
                 searchList.Items.Add(r);
             }
         }
+
     }
 }
